@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neon Snake — Modern Arcade</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <main class="app">
+      <header class="hud glass">
+        <div>
+          <p class="label">Score</p>
+          <h1 id="score">0</h1>
+        </div>
+        <div>
+          <p class="label">Best</p>
+          <h2 id="best">0</h2>
+        </div>
+        <button id="pauseBtn" class="btn">Pause</button>
+      </header>
+
+      <section class="stage glass">
+        <canvas id="game" width="560" height="560" aria-label="Snake game board"></canvas>
+        <div id="overlay" class="overlay">
+          <h2>Neon Snake</h2>
+          <p>Use <kbd>WASD</kbd> / <kbd>Arrow Keys</kbd> • <kbd>Space</kbd> to start</p>
+          <button id="startBtn" class="btn primary">Start Game</button>
+        </div>
+      </section>
+
+      <footer class="tips glass">
+        <p>Eat pulses, grow longer, avoid walls and your tail.</p>
+      </footer>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
