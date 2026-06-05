@@ -1,37 +1,96 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Neon Snake — Modern Arcade</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body data-theme="mint">
     <div class="bg-grid" aria-hidden="true"></div>
     <main class="app">
-      <header class="hud glass">
-        <div>
-          <p class="label">Score</p>
+      <header class="hud glass" aria-label="Статистика игры">
+        <div class="hud-stat">
+          <p class="label">Счёт</p>
           <h1 id="score">0</h1>
         </div>
-        <div>
-          <p class="label">Best</p>
+        <div class="hud-stat">
+          <p class="label">Рекорд</p>
           <h2 id="best">0</h2>
         </div>
-        <button id="pauseBtn" class="btn">Pause</button>
+        <div class="hud-stat">
+          <p class="label">Уровень</p>
+          <h2 id="level">1</h2>
+        </div>
+        <div class="hud-actions">
+          <button id="soundBtn" class="btn icon" type="button" aria-pressed="false">🔊</button>
+          <button id="pauseBtn" class="btn" type="button">Пауза</button>
+        </div>
       </header>
 
       <section class="stage glass">
-        <canvas id="game" width="560" height="560" aria-label="Snake game board"></canvas>
+        <canvas id="game" width="560" height="560" aria-label="Игровое поле Snake"></canvas>
         <div id="overlay" class="overlay">
-          <h2>Neon Snake</h2>
-          <p>Use <kbd>WASD</kbd> / <kbd>Arrow Keys</kbd> • <kbd>Space</kbd> to start</p>
-          <button id="startBtn" class="btn primary">Start Game</button>
+          <div class="overlay-card">
+            <p class="eyebrow">Modern Arcade Edition</p>
+            <h2>Neon Snake</h2>
+            <p id="overlayText">Ешь импульсы, собирай бонусы и избегай стен, препятствий и хвоста.</p>
+
+            <div class="settings" aria-label="Настройки игры">
+              <label>
+                Сложность
+                <select id="difficultySelect">
+                  <option value="easy">Easy</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="hard">Hard</option>
+                  <option value="insane">Insane</option>
+                </select>
+              </label>
+              <label>
+                Тема
+                <select id="themeSelect">
+                  <option value="mint" selected>Cyber Mint</option>
+                  <option value="violet">Purple Neon</option>
+                  <option value="lava">Lava</option>
+                  <option value="matrix">Matrix</option>
+                  <option value="crt">Retro CRT</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="legend" aria-label="Типы еды">
+              <span><i class="dot food-normal"></i>+10</span>
+              <span><i class="dot food-golden"></i>+30</span>
+              <span><i class="dot food-slow"></i>замедление</span>
+              <span><i class="dot food-shield"></i>щит</span>
+              <span><i class="dot food-poison"></i>яд</span>
+            </div>
+
+            <div class="overlay-actions">
+              <button id="startBtn" class="btn primary" type="button">Начать игру</button>
+              <button id="resetScoresBtn" class="btn" type="button">Сбросить рекорды</button>
+            </div>
+            <p class="controls">Клавиши: <kbd>WASD</kbd> / <kbd>стрелки</kbd>, <kbd>Space</kbd> старт, <kbd>P</kbd> пауза. На телефоне — свайпы или кнопки ниже.</p>
+          </div>
         </div>
       </section>
 
-      <footer class="tips glass">
-        <p>Eat pulses, grow longer, avoid walls and your tail.</p>
+      <section class="touch-controls glass" aria-label="Сенсорное управление">
+        <button class="touch-btn" data-dir="up" type="button" aria-label="Вверх">▲</button>
+        <button class="touch-btn" data-dir="left" type="button" aria-label="Влево">◀</button>
+        <button class="touch-btn" data-dir="down" type="button" aria-label="Вниз">▼</button>
+        <button class="touch-btn" data-dir="right" type="button" aria-label="Вправо">▶</button>
+      </section>
+
+      <footer class="dashboard glass">
+        <div>
+          <p class="label">Статистика</p>
+          <p id="stats">Время: 00:00 • Длина: 3 • Съедено: 0 • Щит: нет</p>
+        </div>
+        <div>
+          <p class="label">Лидеры</p>
+          <ol id="leaderboard" class="leaderboard"></ol>
+        </div>
       </footer>
     </main>
 
