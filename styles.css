@@ -227,43 +227,10 @@ kbd { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22)
   .overlay { inset: 10px; }
 }
 
-.mission {
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  font-weight: 700;
-}
-
-.achievements {
-  margin: 4px 0 0;
-  padding-left: 0;
-  list-style: none;
-  color: var(--muted);
-  display: grid;
-  gap: 4px;
-}
-
-.achievements li::before { content: '◇ '; color: var(--accent); }
-.achievements li.unlocked::before { content: '◆ '; color: #ffd166; }
-
-.combo-pop {
-  animation: comboPop .28s ease;
-}
-
-@keyframes comboPop {
-  50% { transform: scale(1.08); text-shadow: 0 0 24px var(--accent); }
-}
-
-.editor-hint {
-  outline: 2px dashed color-mix(in srgb, var(--accent) 70%, white);
-  outline-offset: 4px;
-}
-
-@media (min-width: 641px) {
-  .settings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dashboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 .food-teleport { background: #c77dff; color: #c77dff; }
 .food-double { background: #f7ff58; color: #f7ff58; }
-.food-ghost { background: #ffffff; color: #ffffff; }
+.head-eye { color: #08101f; }
+@media (min-width: 641px) {
+  .settings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dashboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
