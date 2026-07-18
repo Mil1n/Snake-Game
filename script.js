@@ -6,17 +6,24 @@ const levelEl = document.getElementById('level');
 const statsEl = document.getElementById('stats');
 const careerStatsEl = document.getElementById('careerStats');
 const leaderboardEl = document.getElementById('leaderboard');
+const achievementsEl = document.getElementById('achievements');
 const overlay = document.getElementById('overlay');
 const overlayText = document.getElementById('overlayText');
+const missionEl = document.getElementById('mission');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const soundBtn = document.getElementById('soundBtn');
 const resetScoresBtn = document.getElementById('resetScoresBtn');
+const exportBtn = document.getElementById('exportBtn');
 const difficultySelect = document.getElementById('difficultySelect');
 const mapSelect = document.getElementById('mapSelect');
 const themeSelect = document.getElementById('themeSelect');
+const modeSelect = document.getElementById('modeSelect');
+const mapSelect = document.getElementById('mapSelect');
+const skinSelect = document.getElementById('skinSelect');
 const stage = document.querySelector('.stage');
 
+const { difficulties, modes, foodTypes, mapPresets, currentLevel, formatTime, sortLeaders, missionForDate, nextCell, collides } = SnakeCore;
 const cell = 28;
 const grid = canvas.width / cell;
 const bestKey = 'neonSnakeBest';
@@ -105,35 +112,62 @@ function renderCareerStats() {
 }
 
 function renderLeaderboard() {
-  const leaders = readLeaders();
   leaderboardEl.innerHTML = '';
-  leaders.slice(0, 5).forEach((entry) => {
+  readLeaders().slice(0, 5).forEach((entry) => {
     const li = document.createElement('li');
     li.textContent = `${entry.score} • ${entry.mode} • ${entry.date}`;
     leaderboardEl.appendChild(li);
   });
 }
 
+function renderAchievements() {
+  const unlocked = readAchievements();
+  achievementsEl.innerHTML = '';
+  achievementList.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = unlocked.includes(item.id) ? 'unlocked' : '';
+    li.textContent = `${unlocked.includes(item.id) ? 'Открыто' : 'Скрыто'}: ${item.title}`;
+    achievementsEl.appendChild(li);
+  });
+}
+
+function renderCareerStats() {
+  const s = readStats();
+  careerStatsEl.textContent = `Партий: ${s.games} • Лучшая длина: ${s.bestLength} • Всего еды: ${s.totalFood}`;
+}
+
 function saveLeader() {
   if (!score) return;
   const leaders = readLeaders();
-  leaders.push({
-    score,
-    mode: difficulties[difficultySelect.value].label,
-    date: new Date().toLocaleDateString('ru-RU')
-  });
-  leaders.sort((a, b) => b.score - a.score);
-  localStorage.setItem(leadersKey, JSON.stringify(leaders.slice(0, 5)));
+  leaders.push({ score, mode: `${modes[modeSelect.value].label}/${difficulties[difficultySelect.value].label}`, date: new Date().toLocaleDateString('ru-RU') });
+  writeJson(keys.leaders, sortLeaders(leaders));
   renderLeaderboard();
 }
 
-function getBest() {
-  return Number(localStorage.getItem(bestKey) || 0);
+function updateCareer(reason = lastDeathReason) {
+  const s = readStats();
+  s.games += 1;
+  s.totalTime += gameTime();
+  s.totalFood += eaten;
+  s.bestLength = Math.max(s.bestLength, snake.length);
+  s.deaths[reason] = (s.deaths[reason] || 0) + 1;
+  s.favoriteModes[modeSelect.value] = (s.favoriteModes[modeSelect.value] || 0) + 1;
+  writeJson(keys.stats, s);
+  renderCareerStats();
 }
 
-function setBest(value) {
-  localStorage.setItem(bestKey, String(value));
-  bestEl.textContent = value;
+function unlockAchievements() {
+  const unlocked = new Set(readAchievements());
+  const snapshot = { eaten, time: gameTime(), food: foodCounters, maxCombo, mode: difficultySelect.value, score };
+  achievementList.forEach((item) => { if (item.check(snapshot)) unlocked.add(item.id); });
+  writeJson(keys.achievements, [...unlocked]);
+  renderAchievements();
+}
+
+function selectedObstacles() {
+  if (mapSelect.value === 'custom') return readJson(keys.customMap, []).map(([x, y]) => ({ x, y }));
+  if (modeSelect.value === 'challenge' && mapSelect.value === 'none') return mapPresets.cross.obstacles.map(([x, y]) => ({ x, y }));
+  return (mapPresets[mapSelect.value]?.obstacles || []).map(([x, y]) => ({ x, y }));
 }
 
 function reset() {
@@ -145,8 +179,9 @@ function reset() {
   nextDir = { ...dir };
   score = 0;
   speed = difficulty.speed;
-  shield = difficulty.lives;
-  eaten = 0;
+  shield = difficultySelect.value === 'insane' ? 0 : difficulty.lives;
+  eaten = 0; combo = 1; maxCombo = 1; doubleNext = false; ghostUntil = 0; frozenUntil = 0;
+  foodCounters = Object.fromEntries(Object.keys(foodTypes).map((k) => [k, 0]));
   elapsedBeforePause = 0;
   achievedNewBest = false;
   lastDeathReason = 'столкновение';
@@ -195,6 +230,7 @@ function isOccupied(point) {
 }
 
 function pickFoodType() {
+  if (modeSelect.value === 'classic') return 'normal';
   const roll = Math.random();
   if (roll < 0.58) return 'normal';
   if (roll < 0.72) return 'golden';
@@ -207,12 +243,12 @@ function pickFoodType() {
 
 function spawnFood() {
   const type = pickFoodType();
-  do {
-    food = { ...randomCell(), type, born: Date.now() };
-  } while (isOccupied(food));
+  let attempts = 0;
+  do { food = { ...randomCell(), type, born: Date.now() }; attempts += 1; } while (isOccupied(food) && attempts < 120);
 }
 
 function maybeAddObstacle() {
+  if (modeSelect.value === 'classic' || modeSelect.value === 'zen' || Date.now() < frozenUntil) return;
   const difficulty = difficulties[difficultySelect.value];
   if (mapSelect.value !== 'dynamic') return;
   if (!difficulty.maxObstacles || eaten % difficulty.obstacleEvery !== 0 || obstacles.length >= difficulty.maxObstacles) return;
@@ -227,20 +263,9 @@ function maybeAddObstacle() {
   if (attempts < 80) obstacles.push(obstacle);
 }
 
-function manhattan(a, b) {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
-
-function cssVar(name) {
-  return getComputedStyle(document.body).getPropertyValue(name).trim();
-}
-
 function drawCell(x, y, color, glow = color, inset = 3) {
-  const px = x * cell;
-  const py = y * cell;
-  ctx.shadowColor = glow;
-  ctx.shadowBlur = 14;
-  ctx.fillStyle = color;
+  const px = x * cell, py = y * cell;
+  ctx.shadowColor = glow; ctx.shadowBlur = 14; ctx.fillStyle = color;
   ctx.fillRect(px + inset, py + inset, cell - inset * 2, cell - inset * 2);
   ctx.shadowBlur = 0;
 }
@@ -261,32 +286,18 @@ function drawHead(head) {
 }
 
 function drawCircleCell(x, y, color, glow = color, pulse = 0) {
-  const centerX = x * cell + cell / 2;
-  const centerY = y * cell + cell / 2;
-  ctx.shadowColor = glow;
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, cell * (0.28 + pulse), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  const centerX = x * cell + cell / 2, centerY = y * cell + cell / 2;
+  ctx.shadowColor = glow; ctx.shadowBlur = 18; ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(centerX, centerY, cell * (0.28 + pulse), 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
 }
 
 function drawParticles() {
   particles = particles.filter((p) => p.life > 0);
-  particles.forEach((p) => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life -= 1;
-    ctx.globalAlpha = Math.max(0, p.life / 18);
-    drawCircleCell(p.x, p.y, p.color, p.color, -0.16);
-    ctx.globalAlpha = 1;
-  });
+  particles.forEach((p) => { p.x += p.vx; p.y += p.vy; p.life -= 1; ctx.globalAlpha = Math.max(0, p.life / 18); drawCircleCell(p.x, p.y, p.color, p.color, -0.16); ctx.globalAlpha = 1; });
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
   ctx.strokeStyle = 'rgba(121, 174, 255, 0.08)';
   for (let i = 0; i <= grid; i++) {
     ctx.beginPath();
@@ -317,17 +328,15 @@ function draw() {
   }
 
   const meta = foodTypes[food.type];
-  const pulse = Math.sin(Date.now() / 160) * 0.05;
-  drawCircleCell(food.x, food.y, meta.color, meta.glow, pulse);
+  drawCircleCell(food.x, food.y, meta.color, meta.glow, Math.sin(Date.now() / 160) * 0.05);
   drawParticles();
 }
 
 function tick() {
   if (!playing || paused) return;
-
+  if (modeSelect.value === 'time' && gameTime() >= timeLimit) return gameOver('истекло время');
   const meta = foodTypes[food.type];
   if (meta.ttl && Date.now() - food.born > meta.ttl) spawnFood();
-
   dir = nextDir;
   const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
   const hitWall = head.x < 0 || head.y < 0 || head.x >= grid || head.y >= grid;
@@ -349,17 +358,9 @@ function tick() {
     gameOver(lastDeathReason);
     return;
   }
-
   snake.unshift(head);
-
-  if (head.x === food.x && head.y === food.y) {
-    consumeFood(food.type);
-  } else {
-    snake.pop();
-  }
-
-  updateHud();
-  draw();
+  if (head.x === food.x && head.y === food.y) consumeFood(food.type); else snake.pop();
+  updateHud(); draw();
 }
 
 function consumeFood(type) {
@@ -375,15 +376,8 @@ function consumeFood(type) {
   if (type === 'double') doubleNext = true;
 
   speed = Math.max(difficulties[difficultySelect.value].minSpeed, speed - difficulties[difficultySelect.value].speedStep);
-  if (score > getBest()) {
-    achievedNewBest = true;
-    setBest(score);
-  }
-  burst(food.x, food.y, meta.color);
-  playTone(type === 'poison' ? 120 : 520 + Math.min(score, 300), 0.09, type === 'golden' ? 'triangle' : 'sine');
-  maybeAddObstacle();
-  spawnFood();
-  restartLoop();
+  if (score > getBest()) { achievedNewBest = true; setBest(score); }
+  burst(food.x, food.y, meta.color); playTone(type === 'poison' ? 120 : 520 + Math.min(score, 300), 0.09, type === 'golden' ? 'triangle' : 'sine'); maybeAddObstacle(); spawnFood(); restartLoop(); unlockAchievements(); updateMission();
 }
 
 function safeCell() {
@@ -423,18 +417,8 @@ function restartLoop() {
 }
 
 function startGame() {
-  overlay.classList.add('hidden');
-  overlay.querySelector('h2').textContent = 'Neon Snake';
-  overlayText.textContent = 'Ешь импульсы, собирай бонусы и избегай стен, препятствий и хвоста.';
-  playing = true;
-  paused = false;
-  pauseBtn.textContent = 'Пауза';
-  reset();
-  draw();
-  clearInterval(statsLoop);
-  statsLoop = setInterval(updateHud, 500);
-  restartLoop();
-  playTone(440, 0.12, 'triangle');
+  editorMode = false; stage.classList.remove('editor-hint'); overlay.classList.add('hidden'); overlay.querySelector('h2').textContent = 'Neon Snake'; overlayText.textContent = modes[modeSelect.value].description;
+  playing = true; paused = false; pauseBtn.textContent = 'Пауза'; reset(); draw(); clearInterval(statsLoop); clearInterval(timerLoop); statsLoop = setInterval(updateHud, 500); timerLoop = setInterval(draw, 120); restartLoop(); playTone(440, 0.12, 'triangle');
 }
 
 function gameOver(reason = lastDeathReason) {
@@ -461,70 +445,45 @@ function setDirection(x, y) {
   nextDir = { x, y };
 }
 
-function togglePause() {
-  if (!playing) return;
-  paused = !paused;
-  if (paused) {
-    elapsedBeforePause += Date.now() - startTime;
-  } else {
-    startTime = Date.now();
-  }
-  pauseBtn.textContent = paused ? 'Продолжить' : 'Пауза';
-  playTone(paused ? 260 : 420, 0.08, 'triangle');
-  updateHud();
+function setDirection(x, y) { if (!playing || paused) return; if (x === -dir.x && y === -dir.y) return; nextDir = { x, y }; }
+function togglePause() { if (!playing) return; paused = !paused; if (paused) elapsedBeforePause += Date.now() - startTime; else startTime = Date.now(); pauseBtn.textContent = paused ? 'Продолжить' : 'Пауза'; playTone(paused ? 260 : 420, 0.08, 'triangle'); updateHud(); }
+function playTone(frequency, duration, type = 'sine') { if (muted) return; audioContext ||= new (window.AudioContext || window.webkitAudioContext)(); const oscillator = audioContext.createOscillator(); const gain = audioContext.createGain(); oscillator.type = type; oscillator.frequency.value = frequency; oscillator.connect(gain); gain.connect(audioContext.destination); gain.gain.setValueAtTime(0.001, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01); gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration); oscillator.start(); oscillator.stop(audioContext.currentTime + duration); }
+function setMuted(value) { muted = value; localStorage.setItem(keys.sound, String(muted)); soundBtn.textContent = muted ? '🔇' : '🔊'; soundBtn.setAttribute('aria-pressed', String(!muted)); }
+function setTheme(theme) { document.body.dataset.theme = theme; localStorage.setItem(keys.theme, theme); if (snake && food) draw(); }
+function persistSelect(select, key) { localStorage.setItem(key, select.value); if (!playing) { reset(); draw(); updateMission(); } }
+
+function updateHud() {
+  scoreEl.textContent = score; bestEl.textContent = getBest(); levelEl.textContent = currentLevel(score);
+  const timeText = modeSelect.value === 'time' ? `${formatTime(Math.max(0, timeLimit - gameTime()))} осталось` : formatTime(gameTime());
+  statsEl.textContent = `Время: ${timeText} • Длина: ${snake?.length || 3} • Съедено: ${eaten || 0} • Щит: ${shield > 0 ? shield : 'нет'} • Комбо: x${combo}`;
 }
 
-function playTone(frequency, duration, type = 'sine') {
-  if (muted) return;
-  audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.type = type;
-  oscillator.frequency.value = frequency;
-  oscillator.connect(gain);
-  gain.connect(audioContext.destination);
-  gain.gain.setValueAtTime(0.001, audioContext.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
-  oscillator.start();
-  oscillator.stop(audioContext.currentTime + duration);
+function updateMission() {
+  const m = missionForDate();
+  const value = m.metric === 'score' ? score : m.metric === 'eaten' ? eaten : m.metric === 'time' ? gameTime() : m.metric === 'shieldFood' ? foodCounters.shield || 0 : foodCounters.golden || 0;
+  missionEl.textContent = `Миссия дня: ${m.text} — ${Math.min(m.target, value)}/${m.target}`;
 }
 
-function setMuted(value) {
-  muted = value;
-  localStorage.setItem(soundKey, String(muted));
-  soundBtn.textContent = muted ? '🔇' : '🔊';
-  soundBtn.setAttribute('aria-pressed', String(!muted));
+function toggleCustomObstacle(event) {
+  if (mapSelect.value !== 'custom' || playing) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((event.clientX - rect.left) / (rect.width / grid));
+  const y = Math.floor((event.clientY - rect.top) / (rect.height / grid));
+  const list = readJson(keys.customMap, []);
+  const index = list.findIndex(([cx, cy]) => cx === x && cy === y);
+  if (index >= 0) list.splice(index, 1); else list.push([x, y]);
+  writeJson(keys.customMap, list); reset(); draw();
 }
 
-function setTheme(theme) {
-  document.body.dataset.theme = theme;
-  localStorage.setItem(themeKey, theme);
-  if (snake && food) draw();
+function exportSave() {
+  const payload = { best: getBest(), leaders: readLeaders(), stats: readStats(), achievements: readAchievements() };
+  navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
+  overlayText.textContent = 'Экспорт результатов скопирован в буфер обмена (если браузер разрешил доступ).';
 }
 
-function applyDirectionName(direction) {
-  const map = {
-    up: [0, -1],
-    down: [0, 1],
-    left: [-1, 0],
-    right: [1, 0]
-  };
-  setDirection(...map[direction]);
-}
+function applyDirectionName(direction) { const map = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }; setDirection(...map[direction]); }
 
-document.addEventListener('keydown', (e) => {
-  const key = e.key.toLowerCase();
-  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'w', 'a', 's', 'd', 'p'].includes(key)) e.preventDefault();
-
-  if (key === ' ' && !playing) return startGame();
-  if (key === 'p') return togglePause();
-  if (key === 'arrowup' || key === 'w') setDirection(0, -1);
-  if (key === 'arrowdown' || key === 's') setDirection(0, 1);
-  if (key === 'arrowleft' || key === 'a') setDirection(-1, 0);
-  if (key === 'arrowright' || key === 'd') setDirection(1, 0);
-});
-
+document.addEventListener('keydown', (e) => { const key = e.key.toLowerCase(); if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'w', 'a', 's', 'd', 'p'].includes(key)) e.preventDefault(); if (key === ' ' && !playing) return startGame(); if (key === 'p') return togglePause(); if (key === 'arrowup' || key === 'w') setDirection(0, -1); if (key === 'arrowdown' || key === 's') setDirection(0, 1); if (key === 'arrowleft' || key === 'a') setDirection(-1, 0); if (key === 'arrowright' || key === 'd') setDirection(1, 0); });
 let touchStart = null;
 canvas.addEventListener('pointerdown', (event) => {
   touchStart = { x: event.clientX, y: event.clientY };

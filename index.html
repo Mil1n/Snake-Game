@@ -38,6 +38,16 @@
 
             <div class="settings" aria-label="Настройки игры">
               <label>
+                Режим
+                <select id="modeSelect">
+                  <option value="arcade" selected>Arcade</option>
+                  <option value="classic">Classic</option>
+                  <option value="zen">Zen</option>
+                  <option value="challenge">Challenge</option>
+                  <option value="time">Time Attack</option>
+                </select>
+              </label>
+              <label>
                 Сложность
                 <select id="difficultySelect">
                   <option value="easy">Easy</option>
@@ -65,6 +75,16 @@
                   <option value="crt">Retro CRT</option>
                 </select>
               </label>
+              <label>
+                Скин
+                <select id="skinSelect">
+                  <option value="neon" selected>Neon</option>
+                  <option value="pixel">Pixel</option>
+                  <option value="dragon">Cyber Dragon</option>
+                  <option value="ghost">Ghost</option>
+                  <option value="rainbow">Rainbow</option>
+                </select>
+              </label>
             </div>
 
             <div class="legend" aria-label="Типы еды">
@@ -77,8 +97,10 @@
               <span><i class="dot food-double"></i>x2</span>
             </div>
 
+            <p id="mission" class="mission">Миссия дня загружается…</p>
             <div class="overlay-actions">
               <button id="startBtn" class="btn primary" type="button">Начать игру</button>
+              <button id="exportBtn" class="btn" type="button">Экспорт</button>
               <button id="resetScoresBtn" class="btn" type="button">Сбросить рекорды</button>
             </div>
             <p class="controls">Клавиши: <kbd>WASD</kbd> / <kbd>стрелки</kbd>, <kbd>Space</kbd> старт, <kbd>P</kbd> пауза. На телефоне — свайпы или кнопки ниже.</p>
@@ -96,7 +118,7 @@
       <footer class="dashboard glass">
         <div>
           <p class="label">Статистика</p>
-          <p id="stats">Время: 00:00 • Длина: 3 • Съедено: 0 • Щит: нет</p>
+          <p id="stats">Время: 00:00 • Длина: 3 • Съедено: 0 • Щит: нет • Комбо: x1</p>
         </div>
         <div>
           <p class="label">За всё время</p>
@@ -106,9 +128,18 @@
           <p class="label">Лидеры</p>
           <ol id="leaderboard" class="leaderboard"></ol>
         </div>
+        <div>
+          <p class="label">Достижения</p>
+          <ul id="achievements" class="achievements"></ul>
+        </div>
+        <div>
+          <p class="label">Карьера</p>
+          <p id="careerStats">Партий: 0 • Лучшая длина: 3 • Всего еды: 0</p>
+        </div>
       </footer>
     </main>
 
+    <script src="game-core.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
