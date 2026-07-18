@@ -4,6 +4,7 @@ const scoreEl = document.getElementById('score');
 const bestEl = document.getElementById('best');
 const levelEl = document.getElementById('level');
 const statsEl = document.getElementById('stats');
+const careerStatsEl = document.getElementById('careerStats');
 const leaderboardEl = document.getElementById('leaderboard');
 const overlay = document.getElementById('overlay');
 const overlayText = document.getElementById('overlayText');
@@ -12,6 +13,7 @@ const pauseBtn = document.getElementById('pauseBtn');
 const soundBtn = document.getElementById('soundBtn');
 const resetScoresBtn = document.getElementById('resetScoresBtn');
 const difficultySelect = document.getElementById('difficultySelect');
+const mapSelect = document.getElementById('mapSelect');
 const themeSelect = document.getElementById('themeSelect');
 const stage = document.querySelector('.stage');
 
@@ -20,6 +22,9 @@ const grid = canvas.width / cell;
 const bestKey = 'neonSnakeBest';
 const leadersKey = 'neonSnakeLeaders';
 const themeKey = 'neonSnakeTheme';
+const difficultyKey = 'neonSnakeDifficulty';
+const mapKey = 'neonSnakeMap';
+const careerKey = 'neonSnakeCareerStats';
 const soundKey = 'neonSnakeMuted';
 
 const difficulties = {
@@ -34,7 +39,16 @@ const foodTypes = {
   golden: { score: 30, color: '#ffd166', glow: '#fff0a3', ttl: 6500 },
   slow: { score: 5, color: '#7bdff2', glow: '#9bf6ff', ttl: 8000 },
   shield: { score: 5, color: '#b8f7d4', glow: '#d8ffe8', ttl: 9000 },
-  poison: { score: -10, color: '#ef476f', glow: '#ff6b6b', ttl: 7000 }
+  poison: { score: -10, color: '#ef476f', glow: '#ff6b6b', ttl: 7000 },
+  teleport: { score: 15, color: '#c77dff', glow: '#e0aaff', ttl: 8500 },
+  double: { score: 20, color: '#f7ff58', glow: '#ffff99', ttl: 8500 }
+};
+
+const mapPresets = {
+  dynamic: [],
+  cross: [[9, 6], [9, 7], [9, 8], [9, 11], [9, 12], [9, 13], [6, 9], [7, 9], [8, 9], [11, 9], [12, 9], [13, 9]],
+  arena: [[4, 4], [5, 4], [14, 4], [15, 4], [4, 15], [5, 15], [14, 15], [15, 15], [4, 5], [15, 5], [4, 14], [15, 14]],
+  corridors: [[5, 3], [5, 4], [5, 5], [5, 6], [5, 13], [5, 14], [5, 15], [14, 4], [14, 5], [14, 6], [14, 7], [14, 12], [14, 13], [14, 14], [10, 9], [10, 10]]
 };
 
 let snake;
@@ -55,6 +69,8 @@ let eaten = 0;
 let startTime = 0;
 let elapsedBeforePause = 0;
 let achievedNewBest = false;
+let lastDeathReason = 'столкновение';
+let doubleNext = false;
 let audioContext;
 
 function readLeaders() {
@@ -63,6 +79,29 @@ function readLeaders() {
   } catch {
     return [];
   }
+}
+
+function readCareerStats() {
+  try {
+    return JSON.parse(localStorage.getItem(careerKey) || '{"games":0,"totalTime":0,"bestLength":3,"totalEaten":0}');
+  } catch {
+    return { games: 0, totalTime: 0, bestLength: 3, totalEaten: 0 };
+  }
+}
+
+function saveCareerStats() {
+  const stats = readCareerStats();
+  stats.games += 1;
+  stats.totalTime += elapsedBeforePause;
+  stats.bestLength = Math.max(stats.bestLength, snake.length);
+  stats.totalEaten += eaten;
+  localStorage.setItem(careerKey, JSON.stringify(stats));
+  renderCareerStats();
+}
+
+function renderCareerStats() {
+  const stats = readCareerStats();
+  careerStatsEl.textContent = `Партий: ${stats.games} • Время: ${formatTime(stats.totalTime)} • Макс. длина: ${stats.bestLength} • Еды: ${stats.totalEaten}`;
 }
 
 function renderLeaderboard() {
@@ -100,7 +139,7 @@ function setBest(value) {
 function reset() {
   const difficulty = difficulties[difficultySelect.value];
   snake = [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }];
-  obstacles = [];
+  obstacles = presetObstacles();
   particles = [];
   dir = { x: 1, y: 0 };
   nextDir = { ...dir };
@@ -110,6 +149,8 @@ function reset() {
   eaten = 0;
   elapsedBeforePause = 0;
   achievedNewBest = false;
+  lastDeathReason = 'столкновение';
+  doubleNext = false;
   startTime = Date.now();
   spawnFood();
   updateHud();
@@ -138,6 +179,10 @@ function updateHud() {
   statsEl.textContent = `Время: ${formatTime(gameTime())} • Длина: ${snake?.length || 3} • Съедено: ${eaten || 0} • Щит: ${shield > 0 ? 'да' : 'нет'}`;
 }
 
+function presetObstacles() {
+  return (mapPresets[mapSelect.value] || []).map(([x, y]) => ({ x, y }));
+}
+
 function randomCell() {
   return {
     x: Math.floor(Math.random() * grid),
@@ -154,8 +199,10 @@ function pickFoodType() {
   if (roll < 0.58) return 'normal';
   if (roll < 0.72) return 'golden';
   if (roll < 0.84) return 'slow';
-  if (roll < 0.94) return 'shield';
-  return 'poison';
+  if (roll < 0.90) return 'shield';
+  if (roll < 0.96) return 'poison';
+  if (roll < 0.985) return 'teleport';
+  return 'double';
 }
 
 function spawnFood() {
@@ -167,6 +214,7 @@ function spawnFood() {
 
 function maybeAddObstacle() {
   const difficulty = difficulties[difficultySelect.value];
+  if (mapSelect.value !== 'dynamic') return;
   if (!difficulty.maxObstacles || eaten % difficulty.obstacleEvery !== 0 || obstacles.length >= difficulty.maxObstacles) return;
 
   let obstacle;
@@ -195,6 +243,21 @@ function drawCell(x, y, color, glow = color, inset = 3) {
   ctx.fillStyle = color;
   ctx.fillRect(px + inset, py + inset, cell - inset * 2, cell - inset * 2);
   ctx.shadowBlur = 0;
+}
+
+function drawHead(head) {
+  drawCell(head.x, head.y, cssVar('--snake'), cssVar('--accent'));
+  const centerX = head.x * cell + cell / 2;
+  const centerY = head.y * cell + cell / 2;
+  const forwardX = dir.x * 5;
+  const forwardY = dir.y * 5;
+  const sideX = dir.y * 4;
+  const sideY = -dir.x * 4;
+  ctx.fillStyle = '#08101f';
+  ctx.beginPath();
+  ctx.arc(centerX + forwardX + sideX, centerY + forwardY + sideY, 2.3, 0, Math.PI * 2);
+  ctx.arc(centerX + forwardX - sideX, centerY + forwardY - sideY, 2.3, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawCircleCell(x, y, color, glow = color, pulse = 0) {
@@ -237,7 +300,10 @@ function draw() {
   }
 
   obstacles.forEach((o) => drawCell(o.x, o.y, cssVar('--obstacle'), '#b6c2ff', 5));
-  snake.forEach((s, i) => drawCell(s.x, s.y, i === 0 ? cssVar('--snake') : cssVar('--snake-body'), cssVar('--accent')));
+  snake.forEach((s, i) => {
+    if (i === 0) drawHead(s);
+    else drawCell(s.x, s.y, cssVar('--snake-body'), cssVar('--accent'));
+  });
 
   if (shield > 0 && snake[0]) {
     ctx.strokeStyle = '#b8f7d4';
@@ -264,9 +330,13 @@ function tick() {
 
   dir = nextDir;
   const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
-  const crashed = head.x < 0 || head.y < 0 || head.x >= grid || head.y >= grid || snake.some((s) => s.x === head.x && s.y === head.y) || obstacles.some((o) => o.x === head.x && o.y === head.y);
+  const hitWall = head.x < 0 || head.y < 0 || head.x >= grid || head.y >= grid;
+  const hitTail = snake.some((s) => s.x === head.x && s.y === head.y);
+  const hitObstacle = obstacles.some((o) => o.x === head.x && o.y === head.y);
+  const crashed = hitWall || hitTail || hitObstacle;
 
   if (crashed) {
+    lastDeathReason = hitWall ? 'стена' : hitTail ? 'хвост' : 'препятствие';
     if (shield > 0) {
       shield -= 1;
       flash('#b8f7d4');
@@ -276,7 +346,7 @@ function tick() {
       updateHud();
       return;
     }
-    gameOver();
+    gameOver(lastDeathReason);
     return;
   }
 
@@ -295,11 +365,14 @@ function tick() {
 function consumeFood(type) {
   const meta = foodTypes[type];
   eaten += 1;
-  score = Math.max(0, score + meta.score);
+  score = Math.max(0, score + meta.score * (doubleNext ? 2 : 1));
+  doubleNext = false;
 
   if (type === 'slow') speed += 16;
   if (type === 'shield') shield = Math.min(1, shield + 1);
   if (type === 'poison') snake.pop();
+  if (type === 'teleport') snake[0] = safeCell();
+  if (type === 'double') doubleNext = true;
 
   speed = Math.max(difficulties[difficultySelect.value].minSpeed, speed - difficulties[difficultySelect.value].speedStep);
   if (score > getBest()) {
@@ -311,6 +384,16 @@ function consumeFood(type) {
   maybeAddObstacle();
   spawnFood();
   restartLoop();
+}
+
+function safeCell() {
+  let point;
+  let attempts = 0;
+  do {
+    point = randomCell();
+    attempts += 1;
+  } while (isOccupied(point) && attempts < 100);
+  return point;
 }
 
 function burst(x, y, color) {
@@ -354,18 +437,19 @@ function startGame() {
   playTone(440, 0.12, 'triangle');
 }
 
-function gameOver() {
+function gameOver(reason = lastDeathReason) {
   elapsedBeforePause = gameTime();
   playing = false;
   paused = false;
   clearInterval(loop);
   clearInterval(statsLoop);
   saveLeader();
+  saveCareerStats();
   stage.classList.add('shake');
   setTimeout(() => stage.classList.remove('shake'), 360);
   overlay.classList.remove('hidden');
   overlay.querySelector('h2').textContent = achievedNewBest ? 'Новый рекорд!' : 'Game Over';
-  overlayText.textContent = `Счёт: ${score}. Время: ${formatTime(elapsedBeforePause)}. Длина: ${snake.length}. Съедено: ${eaten}. Нажми Space или «Начать игру».`;
+  overlayText.textContent = `Причина: ${reason}. Счёт: ${score}. Время: ${formatTime(elapsedBeforePause)}. Длина: ${snake.length}. Съедено: ${eaten}. Нажми Space или «Начать игру».`;
   pauseBtn.textContent = 'Пауза';
   playTone(90, 0.3, 'sawtooth');
   updateHud();
@@ -465,17 +549,30 @@ soundBtn.addEventListener('click', () => setMuted(!muted));
 resetScoresBtn.addEventListener('click', () => {
   localStorage.removeItem(bestKey);
   localStorage.removeItem(leadersKey);
+  localStorage.removeItem(careerKey);
   renderLeaderboard();
+  renderCareerStats();
   updateHud();
 });
 themeSelect.addEventListener('change', () => setTheme(themeSelect.value));
+mapSelect.addEventListener('change', () => {
+  localStorage.setItem(mapKey, mapSelect.value);
+  if (!playing) {
+    reset();
+    draw();
+  }
+});
 difficultySelect.addEventListener('change', () => {
+  localStorage.setItem(difficultyKey, difficultySelect.value);
   if (!playing) updateHud();
 });
 
 bestEl.textContent = getBest();
 renderLeaderboard();
+renderCareerStats();
 setMuted(muted);
+difficultySelect.value = localStorage.getItem(difficultyKey) || 'normal';
+mapSelect.value = localStorage.getItem(mapKey) || 'dynamic';
 themeSelect.value = localStorage.getItem(themeKey) || 'mint';
 setTheme(themeSelect.value);
 reset();

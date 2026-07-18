@@ -47,6 +47,15 @@
                 </select>
               </label>
               <label>
+                Карта
+                <select id="mapSelect">
+                  <option value="dynamic" selected>Dynamic</option>
+                  <option value="cross">Cross</option>
+                  <option value="arena">Arena</option>
+                  <option value="corridors">Corridors</option>
+                </select>
+              </label>
+              <label>
                 Тема
                 <select id="themeSelect">
                   <option value="mint" selected>Cyber Mint</option>
@@ -64,6 +73,8 @@
               <span><i class="dot food-slow"></i>замедление</span>
               <span><i class="dot food-shield"></i>щит</span>
               <span><i class="dot food-poison"></i>яд</span>
+              <span><i class="dot food-teleport"></i>телепорт</span>
+              <span><i class="dot food-double"></i>x2</span>
             </div>
 
             <div class="overlay-actions">
@@ -86,6 +97,10 @@
         <div>
           <p class="label">Статистика</p>
           <p id="stats">Время: 00:00 • Длина: 3 • Съедено: 0 • Щит: нет</p>
+        </div>
+        <div>
+          <p class="label">За всё время</p>
+          <p id="careerStats">Партий: 0 • Время: 00:00 • Макс. длина: 3</p>
         </div>
         <div>
           <p class="label">Лидеры</p>
